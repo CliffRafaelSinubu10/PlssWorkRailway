@@ -10,5 +10,5 @@ class AppComponent(environment: ApplicationEnvironment) {
 
     val repositoryModule by lazy { RepositoryModule(database) }
     val useCaseModule by lazy { UseCaseModule(repositoryModule) }
-    val controllerModule by lazy { ControllerModule(useCaseModule, jwtService) }
+    val controllerModule by lazy { ControllerModule(useCaseModule, jwtService) } // <-- Oper jwtService ke ControllerModule
 }
