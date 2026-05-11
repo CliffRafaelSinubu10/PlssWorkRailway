@@ -12,7 +12,7 @@ fun main() {
 }
 
 fun Application.module() {
-    log.info("Inventory RFID System Backend (V5.3 - ULTIMATE) is starting...")
+    log.info("Inventory RFID System Backend (V5.5 - FINAL STABLE) is starting...")
     val appComponent = AppComponent(environment)
 
     // 2. Configure Plugins
