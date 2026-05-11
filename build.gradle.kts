@@ -25,6 +25,7 @@ dependencies {
     implementation(libs.exposed.java.time)
     implementation(libs.h2)
     implementation(libs.postgresql)
+    implementation(libs.hikaricp)
     implementation(libs.ktor.server.compression)
     implementation(libs.ktor.server.cors)
     implementation(libs.ktor.server.auth)
