@@ -1,16 +1,18 @@
 import infrastructure.di.AppComponent
 import io.ktor.server.application.*
 import plugins.*
+import io.ktor.server.engine.*
+import io.ktor.server.netty.*
 
-fun main(args: Array<String>) {
-    io.ktor.server.netty.EngineMain.main(args)
+fun main() {
+    val port = System.getenv("PORT")?.toInt() ?: 8080
+    embeddedServer(Netty, port = port, host = "0.0.0.0") {
+        module()
+    }.start(wait = true)
 }
 
 fun Application.module() {
-    // Railway/Production: Force port from environment variable if available
-    val port = System.getenv("PORT")?.toInt() ?: 8080
-    log.info("Server is starting on port: $port")
-
+    log.info("Inventory RFID System Backend (V5.3 - ULTIMATE) is starting...")
     val appComponent = AppComponent(environment)
 
     // 2. Configure Plugins

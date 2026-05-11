@@ -12,6 +12,5 @@ WORKDIR /app
 COPY --from=build /app/build/libs/*-all.jar app.jar
 EXPOSE 8080
 
-# Railway sets PORT env var automatically.
-# We use the -port argument to override application.yaml
-CMD ["sh", "-c", "java -jar app.jar -port=${PORT}"]
+# Start the application using the embedded server
+CMD ["java", "-jar", "app.jar"]
