@@ -12,8 +12,8 @@ const char* password = "12345678910"; // Ganti dengan password WiFi
 // ==========================================
 // 2. KONFIGURASI API (KTOR BACKEND)
 // ==========================================
-// Ganti 10.106.88.172 dengan IP Laptop kamu (saya cek tadi ip laptop kamu 10.106.88.172)
-const String serverUrl = "http://10.106.88.172:8080/api/v1/inventory/register-tag";
+// Gunakan URL Railway Production
+const String serverUrl = "https://ktormachinelearning-production.up.railway.app/api/v1/inventory/register-tag";
 
 // Masukkan JWT Token Admin (Didapat dari login Ktor, karena endpoint register butuh JWT)
 const String jwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJodHRwOi8vMC4wLjAuMDo4MDgwIiwiaXNzIjoiaHR0cDovLzAuMC4wLjA6ODA4MCIsImVtYWlsIjoiYWRtaW5AZXhhbXBsZS5jb20iLCJleHAiOjE3NzY5NDM2MTh9.IluYvxvlIfm5_X5SKhdpk3lLTj559gkhHY218otTQkU";
