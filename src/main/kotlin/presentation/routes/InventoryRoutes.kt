@@ -18,6 +18,11 @@ fun Route.inventoryRoutes(inventoryController: InventoryController) {
                 inventoryController.registerTag(call)
             }
             
+            // Delete a tag from a product
+            delete("/tags/{productId}") {
+                inventoryController.deleteTag(call)
+            }
+            
             // Dashboard data
             get("/dashboard") {
                 inventoryController.getDashboard(call)

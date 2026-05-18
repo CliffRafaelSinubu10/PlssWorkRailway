@@ -53,6 +53,11 @@ class InventoryRepositoryImpl : InventoryRepository {
         }
     }.run { Unit }
 
+    override suspend fun deleteTagByProductId(productId: UUID): Boolean = newSuspendedTransaction {
+        val deletedRows = ProductRfidTagTable.deleteWhere { ProductRfidTagTable.productId eq productId }
+        deletedRows > 0
+    }
+
     override suspend fun recordEvent(event: InventoryEvent): InventoryEvent = newSuspendedTransaction {
         val id = InventoryEventTable.insert {
             it[InventoryEventTable.id] = UUID.randomUUID()

@@ -135,6 +135,23 @@ class InventoryController(
         ))
     }
 
+    suspend fun deleteTag(call: ApplicationCall) {
+        val productId = call.parameters["productId"] ?: throw IllegalArgumentException("Product ID required")
+        val isDeleted = inventoryRepository.deleteTagByProductId(UUID.fromString(productId))
+        
+        if (isDeleted) {
+            call.respond(HttpStatusCode.OK, BaseResponse<Unit>(
+                success = true,
+                message = "Tag unregistered successfully from product"
+            ))
+        } else {
+            call.respond(HttpStatusCode.NotFound, BaseResponse<Unit>(
+                success = false,
+                message = "No tag found for this product"
+            ))
+        }
+    }
+
     suspend fun getDashboard(call: ApplicationCall) {
         val days = call.request.queryParameters["days"]?.toIntOrNull() ?: 30
         val startDate = java.time.LocalDate.now().minusDays(days.toLong())

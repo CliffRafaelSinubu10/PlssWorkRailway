@@ -22,16 +22,8 @@ class ProcessRfidScanUseCase(
         val tag = inventoryRepository.findTagByUid(tagUid)
             ?: throw IllegalArgumentException("RFID Tag not registered: $tagUid")
 
-        // 2. State Validation (PENTING!)
-        // Jika Continuous Mode (Scan Out), kita abaikan status INACTIVE supaya bisa scan berkali-kali buat testing/simulasi lebat
-        if (!isContinuousMode) {
-            if (eventType == "OUT" && tag.status != "ACTIVE") {
-                throw IllegalArgumentException("Barang (Tag: $tagUid) sudah tidak ada di stok (Status: ${tag.status})")
-            }
-            if (eventType == "IN" && tag.status == "ACTIVE") {
-                throw IllegalArgumentException("Barang (Tag: $tagUid) sudah ada di dalam stok (Status: ACTIVE)")
-            }
-        }
+        // 2. State Validation (REMOVED: Tag is now stateless, just an identifier for the product)
+        // A single tag can be used repeatedly for IN and OUT scans without becoming INACTIVE.
 
         // 3. Get Product Info
         val product = productRepository.findById(tag.productId.toString())
@@ -49,9 +41,8 @@ class ProcessRfidScanUseCase(
         )
         val recordedEvent = inventoryRepository.recordEvent(event)
 
-        // 5. Update Tag Status (Supaya tidak bisa double scan)
-        val newTagStatus = if (eventType == "OUT") "INACTIVE" else "ACTIVE"
-        inventoryRepository.updateTagStatus(tag.id!!, newTagStatus)
+        // 5. Update Tag Status (REMOVED)
+        // Tag is stateless, so we no longer update it to INACTIVE or ACTIVE on scan.
 
         // 6. Calculate New Stock (Snapshot)
         val latestSnapshot = inventoryRepository.getLatestSnapshot(tag.productId)
