@@ -23,6 +23,11 @@ fun Route.inventoryRoutes(inventoryController: InventoryController) {
                 inventoryController.deleteTag(call)
             }
             
+            // Check if a product has a registered tag
+            get("/tags/{productId}") {
+                inventoryController.getTagByProduct(call)
+            }
+            
             // Dashboard data
             get("/dashboard") {
                 inventoryController.getDashboard(call)

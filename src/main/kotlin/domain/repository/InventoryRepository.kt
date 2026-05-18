@@ -8,6 +8,7 @@ import java.util.UUID
 interface InventoryRepository {
     // Tag Management
     suspend fun findTagByUid(tagUid: String): ProductRfidTag?
+    suspend fun findTagByProductId(productId: UUID): ProductRfidTag?
     suspend fun saveTag(tag: ProductRfidTag): ProductRfidTag
     suspend fun updateTagStatus(tagId: UUID, status: String)
     suspend fun deleteTagByProductId(productId: UUID): Boolean

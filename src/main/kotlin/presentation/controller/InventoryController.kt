@@ -168,6 +168,24 @@ class InventoryController(
         }
     }
 
+    suspend fun getTagByProduct(call: ApplicationCall) {
+        val productId = call.parameters["productId"] ?: throw IllegalArgumentException("Product ID required")
+        val tag = inventoryRepository.findTagByProductId(UUID.fromString(productId))
+        
+        if (tag != null) {
+            call.respond(HttpStatusCode.OK, BaseResponse<Map<String, String>>(
+                success = true,
+                data = mapOf("tag_uid" to tag.tagUid, "tag_id" to tag.id.toString()),
+                message = "Tag found"
+            ))
+        } else {
+            call.respond(HttpStatusCode.OK, BaseResponse<Map<String, String>>(
+                success = false,
+                message = "No tag registered for this product"
+            ))
+        }
+    }
+
     suspend fun getDashboard(call: ApplicationCall) {
         val days = call.request.queryParameters["days"]?.toIntOrNull() ?: 30
         val startDate = java.time.LocalDate.now().minusDays(days.toLong())

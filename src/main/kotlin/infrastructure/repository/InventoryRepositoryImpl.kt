@@ -18,6 +18,12 @@ class InventoryRepositoryImpl : InventoryRepository {
             .singleOrNull()
     }
 
+    override suspend fun findTagByProductId(productId: UUID): ProductRfidTag? = newSuspendedTransaction {
+        ProductRfidTagTable.selectAll().where { ProductRfidTagTable.productId eq productId }
+            .map { rowToTag(it) }
+            .singleOrNull()
+    }
+
     override suspend fun saveTag(tag: ProductRfidTag): ProductRfidTag = newSuspendedTransaction {
         val existing = ProductRfidTagTable
             .selectAll()
