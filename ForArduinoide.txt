@@ -1,9 +1,29 @@
 /*
   ============================================================
-  SKETCH ESP32 - INVENTORY RFID SYSTEM (PRODUCTION READY V5.5)
+  SKETCH ESP32 - INVENTORY RFID SYSTEM (PRODUCTION READY V6.0)
   ============================================================
   Project: StokPintar - Ktor & Machine Learning
-  Feature: Smart Buzzer Feedback (Success/Error Patterns)
+  Feature: 
+    - Smart Buzzer Feedback (WiFi Status / Scan / Success / Error)
+    - Physical IN/OUT Switch (PIN 4)
+    - Loud & Clear Audio Patterns
+  ============================================================
+  
+  WIRING:
+    RFID RC522:
+      SDA  -> GPIO 5
+      SCK  -> GPIO 18
+      MOSI -> GPIO 23
+      MISO -> GPIO 19
+      RST  -> GPIO 22
+    
+    BUZZER (Active Buzzer):
+      (+)  -> GPIO 21
+      (-)  -> GND
+    
+    SWITCH IN/OUT:
+      PIN  -> GPIO 4 (HIGH = IN, LOW = OUT)
+      
   ============================================================
 */
 
@@ -13,120 +33,212 @@
 #include <MFRC522.h>
 #include <ArduinoJson.h>
 
+// =============================================
 // 1. KONFIGURASI WIFI
-const char* ssid = "NAMA_WIFI_KAMU";
-const char* password = "PASSWORD_WIFI_KAMU";
+// =============================================
+const char* ssid = "Ghana";
+const char* password = "123456712";
 
+// =============================================
 // 2. KONFIGURASI SERVER (RAILWAY)
+// =============================================
 const char* serverName = "https://ktormachinelearning-production.up.railway.app/api/v1/inventory/scan";
 
+// =============================================
 // 3. PIN DEFINITIONS (ESP32)
-#define SS_PIN      5   // SDA
-#define RST_PIN     22  // Reset
-#define BUZZER_PIN  21  // Pin Buzzer (+)
-#define MODE_SWITCH_PIN 4 // Pin Saklar IN/OUT (HIGH = IN, LOW = OUT)
+// =============================================
+#define SS_PIN          5   // SDA / CS
+#define RST_PIN         22  // Reset
+#define BUZZER_PIN      21  // Pin Buzzer (+)
+#define MODE_SWITCH_PIN 4   // Saklar IN/OUT (HIGH = IN, LOW = OUT)
 
 MFRC522 rfid(SS_PIN, RST_PIN);
 
-// Helper function untuk bunyi buzzer
-void beep(int duration, int count) {
-  for (int i = 0; i < count; i++) {
-    digitalWrite(BUZZER_PIN, HIGH);
-    delay(duration);
-    digitalWrite(BUZZER_PIN, LOW);
-    if (count > 1) delay(100);
-  }
+// =============================================
+// 4. BUZZER FUNCTIONS (LOUD & CLEAR)
+// =============================================
+
+// Bunyi dasar - bip kuat
+void beepLoud(int durationMs) {
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(durationMs);
+  digitalWrite(BUZZER_PIN, LOW);
 }
 
+// Pola: Menunggu WiFi (1 bip setiap 1 detik)
+// Dipanggil terus-menerus selama belum konek
+void beepWaiting() {
+  beepLoud(150);  // BIP pendek tapi kuat
+  delay(850);     // Total cycle = 1 detik
+}
+
+// Pola: WiFi Berhasil Konek! (tit-tit cepat, lalu diam)
+void beepWifiConnected() {
+  beepLoud(80);
+  delay(80);
+  beepLoud(80);
+  delay(80);
+  beepLoud(80);
+  // 3x tit-tit cepat lalu STOP. Hening = sudah konek.
+}
+
+// Pola: Kartu RFID terdeteksi (1 bip tegas)
+void beepCardDetected() {
+  beepLoud(200);  // BIP kuat 200ms - kartu terbaca
+}
+
+// Pola: Scan BERHASIL dikirim ke server (2 bip pendek)
+void beepScanSuccess() {
+  beepLoud(150);
+  delay(100);
+  beepLoud(150);
+}
+
+// Pola: Scan GAGAL / Error (1 bip panjang 1 detik)
+void beepScanFailed() {
+  beepLoud(1000);
+}
+
+// Pola: Server DOWN / No Connection (2 bip panjang)
+void beepNoConnection() {
+  beepLoud(800);
+  delay(200);
+  beepLoud(800);
+}
+
+// =============================================
+// 5. SETUP
+// =============================================
 void setup() {
   Serial.begin(115200);
+  Serial.println("\n========================================");
+  Serial.println("  StokPintar ESP32 - RFID Scanner V6.0");
+  Serial.println("========================================");
+
+  // Setup PIN
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
-  pinMode(MODE_SWITCH_PIN, INPUT_PULLUP); // Gunakan internal pull-up
+  pinMode(MODE_SWITCH_PIN, INPUT_PULLUP);
 
-  // Koneksi WiFi
+  // ---- KONEKSI WiFi DENGAN BUZZER FEEDBACK ----
   WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi Connected!");
-  
-  // Feedback WiFi OK: 3 Beep Pendek
-  beep(100, 3);
+  Serial.print("Connecting to WiFi: ");
+  Serial.println(ssid);
 
-  // Inisialisasi SPI & RFID
+  // Selama BELUM konek: bunyi setiap 1 detik
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    beepWaiting();  // BIP... BIP... BIP... (setiap 1 detik)
+  }
+
+  // SUDAH KONEK: tit-tit cepat lalu DIAM
+  Serial.println("\n✅ WiFi Connected!");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+  beepWifiConnected();  // tit-tit-tit lalu hening
+
+  // ---- Inisialisasi SPI & RFID ----
   SPI.begin();
   rfid.PCD_Init();
-  Serial.println("RFID Reader Ready. Scan a tag...");
+  delay(100);
+
+  Serial.println("========================================");
+  Serial.println("  RFID Reader: READY");
+  Serial.print("  Mode Switch PIN 4: ");
+  Serial.println(digitalRead(MODE_SWITCH_PIN) == HIGH ? "SCAN IN" : "SCAN OUT");
+  Serial.println("  Scan a tag to begin...");
+  Serial.println("========================================\n");
 }
 
+// =============================================
+// 6. MAIN LOOP
+// =============================================
 void loop() {
+  // Cek koneksi WiFi terus menerus
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("⚠️ WiFi Disconnected! Reconnecting...");
+    WiFi.reconnect();
+    while (WiFi.status() != WL_CONNECTED) {
+      beepWaiting();  // BIP setiap 1 detik sampai konek lagi
+      Serial.print(".");
+    }
+    Serial.println("\n✅ WiFi Reconnected!");
+    beepWifiConnected();
+  }
+
+  // Tunggu kartu RFID
   if (!rfid.PICC_IsNewCardPresent()) return;
   if (!rfid.PICC_ReadCardSerial()) return;
 
+  // ---- BACA UID KARTU ----
   String tagUid = "";
   for (byte i = 0; i < rfid.uid.size; i++) {
     tagUid += String(rfid.uid.uidByte[i] < 0x10 ? "0" : "");
     tagUid += String(rfid.uid.uidByte[i], HEX);
   }
   tagUid.toUpperCase();
-  
-  Serial.print("\nTag Scanned: ");
+
+  Serial.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  Serial.print("📡 TAG DETECTED: ");
   Serial.println(tagUid);
-  
-  // Beep Awal (Tanda kartu terbaca)
-  beep(100, 1);
 
-  // BACA STATUS SWITCH IN/OUT
-  // Misal Pin 4: HIGH = IN (Barang Masuk), LOW = OUT (Barang Keluar)
+  // BUZZER: Kartu terbaca! (BIP kuat)
+  beepCardDetected();
+
+  // ---- BACA STATUS SWITCH IN/OUT ----
   String eventType = digitalRead(MODE_SWITCH_PIN) == HIGH ? "IN" : "OUT";
-  Serial.print("Mode: "); Serial.println(eventType);
+  Serial.print("📦 Mode: ");
+  Serial.println(eventType);
 
+  // ---- KIRIM KE SERVER ----
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
     http.begin(serverName);
     http.addHeader("Content-Type", "application/json");
+    http.setTimeout(10000); // 10 detik timeout
 
     StaticJsonDocument<200> doc;
     doc["tag_uid"] = tagUid;
-    doc["event_type"] = eventType; // KIRIM KE BACKEND (IN atau OUT)
-    
+    doc["event_type"] = eventType;
+
     String requestBody;
     serializeJson(doc, requestBody);
 
-    Serial.println("Sending data to server...");
+    Serial.print("🌐 Sending to server... ");
     int httpResponseCode = http.POST(requestBody);
 
     if (httpResponseCode > 0) {
       String response = http.getString();
-      Serial.print("HTTP Code: "); Serial.println(httpResponseCode);
+      Serial.print("HTTP ");
+      Serial.println(httpResponseCode);
       Serial.println("Response: " + response);
-      
-      // PARSE JSON untuk cek success
+
+      // Parse JSON response
       StaticJsonDocument<500> resDoc;
       deserializeJson(resDoc, response);
       bool success = resDoc["success"];
 
       if (success && (httpResponseCode == 200 || httpResponseCode == 201)) {
-          // BERHASIL: 2 Beep Pendek
-          Serial.println("Result: SUCCESS");
-          beep(100, 2);
+        // ✅ BERHASIL
+        Serial.println("✅ RESULT: SUCCESS");
+        beepScanSuccess();  // tit-tit (2x pendek)
       } else {
-          // GAGAL (Data Error/Tag Not Registered): 1 Beep Panjang
-          Serial.println("Result: FAILED/ERROR");
-          beep(1000, 1);
+        // ❌ GAGAL (Tag belum terdaftar, dll)
+        Serial.println("❌ RESULT: FAILED");
+        beepScanFailed();   // BIIIIP panjang
       }
     } else {
-      // SERVER DOWN / NO CONNECTION: 1 Beep Sangat Panjang
-      Serial.print("Connection Error: "); Serial.println(httpResponseCode);
-      beep(2000, 1);
+      // 🔌 SERVER DOWN
+      Serial.print("🔌 Connection Error: ");
+      Serial.println(httpResponseCode);
+      beepNoConnection();   // BIIIIP-BIIIIP (2x panjang)
     }
     http.end();
   }
 
+  Serial.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+
   rfid.PICC_HaltA();
   rfid.PCD_StopCrypto1();
-  delay(2000);
+  delay(1500); // Cooldown 1.5 detik sebelum scan berikutnya
 }
