@@ -5,6 +5,9 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 
 fun main() {
+    // Set Timezone to WITA (Manado / UTC+8) globally
+    java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Asia/Makassar"))
+    
     val port = System.getenv("PORT")?.toInt() ?: 8080
     embeddedServer(Netty, port = port, host = "0.0.0.0") {
         module()
