@@ -8,6 +8,7 @@ import domain.repository.AggregateRepository
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
+import kotlinx.coroutines.launch
 
 class ProcessRfidScanUseCase(
     private val inventoryRepository: InventoryRepository,
@@ -70,12 +71,13 @@ class ProcessRfidScanUseCase(
         )
         val savedSnapshot = inventoryRepository.saveSnapshot(snapshot)
 
-        // Real-time Aggregation: Sync aggregate stats for this product today
-        try {
-            aggregateRepository.calculateAndUpsertDaily(LocalDate.now())
-        } catch (e: Exception) {
-            // Log or ignore to prevent scan failing if aggregation has an error
-            println("Failed to run real-time aggregation: ${e.message}")
+        // Real-time Aggregation: Sync aggregate stats in background (async) to cut down response time
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                aggregateRepository.calculateAndUpsertDaily(LocalDate.now())
+            } catch (e: Exception) {
+                println("Failed to run real-time aggregation in background: ${e.message}")
+            }
         }
 
         return Pair(recordedEvent, savedSnapshot)
