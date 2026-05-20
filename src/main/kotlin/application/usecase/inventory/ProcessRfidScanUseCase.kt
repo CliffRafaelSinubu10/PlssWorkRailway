@@ -41,7 +41,20 @@ class ProcessRfidScanUseCase(
         val mutex = productScanMutexes.getOrPut(tag.productId) { Mutex() }
         
         return mutex.withLock {
-            // Step A: Record event
+            // Step A: Read current stock
+            val latestSnapshot = inventoryRepository.getLatestSnapshot(tag.productId)
+            val previousStock = latestSnapshot?.currentStock ?: 0
+            val newStock = if (eventType == "IN") previousStock + 1 else previousStock - 1
+            val finalStock = if (newStock < 0) 0 else newStock
+
+            // Step B: Determine status
+            val status = when {
+                finalStock == 0 -> "OUT_OF_STOCK"
+                finalStock <= product.minStockThreshold -> "LOW_STOCK"
+                else -> "SUFFICIENT"
+            }
+
+            // Step C: Record event
             val event = InventoryEvent(
                 productId = tag.productId,
                 tagId = tag.id,
@@ -53,20 +66,7 @@ class ProcessRfidScanUseCase(
             )
             val recordedEvent = inventoryRepository.recordEvent(event)
 
-            // Step B: Read current stock AFTER event is recorded
-            val latestSnapshot = inventoryRepository.getLatestSnapshot(tag.productId)
-            val previousStock = latestSnapshot?.currentStock ?: 0
-            val newStock = if (eventType == "IN") previousStock + 1 else previousStock - 1
-            val finalStock = if (newStock < 0) 0 else newStock
-
-            // Step C: Determine status
-            val status = when {
-                finalStock == 0 -> "OUT_OF_STOCK"
-                finalStock <= product.minStockThreshold -> "LOW_STOCK"
-                else -> "SUFFICIENT"
-            }
-
-            // Step D: Save new snapshot
+            // Step D: Save snapshot WITH correct stock (BEFORE frontend can poll)
             val snapshot = InventorySnapshot(
                 productId = tag.productId,
                 currentStock = finalStock,
@@ -75,7 +75,7 @@ class ProcessRfidScanUseCase(
             )
             val savedSnapshot = inventoryRepository.saveSnapshot(snapshot)
 
-            // Step E: Background aggregation (fire-and-forget, non-blocking)
+            // Step E: Background aggregation
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                 try {
                     aggregateRepository.calculateAndUpsertDaily(LocalDate.now())
