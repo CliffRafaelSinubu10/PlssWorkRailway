@@ -54,7 +54,7 @@ class ProcessRfidScanUseCase(
                 else -> "SUFFICIENT"
             }
 
-            // Step C: Record event
+            // Step C: Prepare event and snapshot objects
             val event = InventoryEvent(
                 productId = tag.productId,
                 tagId = tag.id,
@@ -64,16 +64,16 @@ class ProcessRfidScanUseCase(
                 note = note,
                 recordedAt = LocalDateTime.now()
             )
-            val recordedEvent = inventoryRepository.recordEvent(event)
 
-            // Step D: Save snapshot WITH correct stock (BEFORE frontend can poll)
             val snapshot = InventorySnapshot(
                 productId = tag.productId,
                 currentStock = finalStock,
                 status = status,
-                sourceEventId = recordedEvent.id
+                sourceEventId = null // Will be populated in the atomic method
             )
-            val savedSnapshot = inventoryRepository.saveSnapshot(snapshot)
+
+            // Step D: Atomically write event and update snapshot in a single DB transaction
+            val resultPair = inventoryRepository.recordEventAndSaveSnapshot(event, snapshot)
 
             // Step E: Background aggregation
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
@@ -84,7 +84,7 @@ class ProcessRfidScanUseCase(
                 }
             }
 
-            Pair(recordedEvent, savedSnapshot)
+            resultPair
         }
     }
 }

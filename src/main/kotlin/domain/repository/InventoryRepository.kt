@@ -16,6 +16,7 @@ interface InventoryRepository {
     // Event & Stock
     suspend fun recordEvent(event: InventoryEvent): InventoryEvent
     suspend fun saveSnapshot(snapshot: InventorySnapshot): InventorySnapshot
+    suspend fun recordEventAndSaveSnapshot(event: InventoryEvent, snapshot: InventorySnapshot): Pair<InventoryEvent, InventorySnapshot>
     suspend fun getLatestSnapshot(productId: UUID): InventorySnapshot?
     suspend fun getProductHistory(productId: UUID, limit: Int, startDate: java.time.LocalDate? = null): List<InventoryEvent>
     suspend fun getDashboardSnapshots(): List<Pair<domain.model.Product, InventorySnapshot?>>

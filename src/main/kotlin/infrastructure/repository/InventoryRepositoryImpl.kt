@@ -109,6 +109,51 @@ class InventoryRepositoryImpl : InventoryRepository {
         }
     }
 
+    override suspend fun recordEventAndSaveSnapshot(event: InventoryEvent, snapshot: InventorySnapshot): Pair<InventoryEvent, InventorySnapshot> = newSuspendedTransaction {
+        // 1. Record event
+        val eventId = InventoryEventTable.insert {
+            it[InventoryEventTable.id] = UUID.randomUUID()
+            it[productId] = event.productId
+            it[tagId] = event.tagId
+            it[adminId] = event.adminId
+            it[eventType] = event.eventType
+            it[quantity] = event.quantity
+            it[note] = event.note
+            it[recordedAt] = event.recordedAt
+        } get InventoryEventTable.id
+        val recordedEvent = event.copy(id = eventId)
+
+        // 2. Save/Upsert snapshot with recordedEvent.id
+        val existingId = InventorySnapshotTable
+            .select(InventorySnapshotTable.id)
+            .where { InventorySnapshotTable.productId eq snapshot.productId }
+            .limit(1)
+            .map { it[InventorySnapshotTable.id] }
+            .singleOrNull()
+
+        val savedSnapshot = if (existingId != null) {
+            InventorySnapshotTable.update({ InventorySnapshotTable.id eq existingId }) {
+                it[currentStock] = snapshot.currentStock
+                it[status] = snapshot.status
+                it[snapshotTime] = java.time.LocalDateTime.now()
+                it[sourceEventId] = eventId
+            }
+            snapshot.copy(id = existingId, sourceEventId = eventId)
+        } else {
+            val snapshotId = InventorySnapshotTable.insert {
+                it[InventorySnapshotTable.id] = UUID.randomUUID()
+                it[productId] = snapshot.productId
+                it[currentStock] = snapshot.currentStock
+                it[status] = snapshot.status
+                it[snapshotTime] = java.time.LocalDateTime.now()
+                it[sourceEventId] = eventId
+            } get InventorySnapshotTable.id
+            snapshot.copy(id = snapshotId, sourceEventId = eventId)
+        }
+
+        Pair(recordedEvent, savedSnapshot)
+    }
+
     override suspend fun getLatestSnapshot(productId: UUID): InventorySnapshot? = newSuspendedTransaction {
         InventorySnapshotTable.selectAll().where { InventorySnapshotTable.productId eq productId }
             .orderBy(InventorySnapshotTable.snapshotTime to SortOrder.DESC)
