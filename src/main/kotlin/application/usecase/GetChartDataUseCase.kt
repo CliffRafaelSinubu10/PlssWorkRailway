@@ -10,6 +10,7 @@ import presentation.dto.response.ForecastingResultDto
 import presentation.dto.response.ProductResponse
 import java.time.LocalDate
 import java.util.UUID
+import kotlinx.coroutines.async
 
 class GetChartDataUseCase(
     private val productRepository: ProductRepository,
@@ -17,21 +18,25 @@ class GetChartDataUseCase(
     private val aggregateRepository: AggregateRepository,
     private val forecastRepository: ForecastRepository
 ) {
-    suspend fun execute(productIdStr: String, daysHistory: Int = 30): ChartDataResponse? {
-        val product = productRepository.findById(productIdStr) ?: return null
+    suspend fun execute(productIdStr: String, daysHistory: Int = 30): ChartDataResponse? = kotlinx.coroutines.coroutineScope {
+        val product = productRepository.findById(productIdStr) ?: return@coroutineScope null
         val productId = UUID.fromString(productIdStr)
 
         val today = LocalDate.now()
         val startDate = today.minusDays(daysHistory.toLong())
 
-        val snapshot = inventoryRepository.getLatestSnapshot(productId)
+        // Parallel Query Optimization: Fetch independent datasets concurrently to cut down physical latency
+        val snapshotDeferred = async { inventoryRepository.getLatestSnapshot(productId) }
+        val aggregatesDeferred = async { aggregateRepository.getByProductAndDateRange(productId, startDate, today) }
+        val forecastsDeferred = async { forecastRepository.getForecastsByProduct(productId, today.plusDays(1)) }
+        val statsDeferred = async { inventoryRepository.getProductStats(productId, startDate, today) }
+
+        val snapshot = snapshotDeferred.await()
+        val aggregates = aggregatesDeferred.await()
+        val forecasts = forecastsDeferred.await()
+        val (rangeTotalIn, rangeTotalOut) = statsDeferred.await()
+
         val currentStock = snapshot?.currentStock ?: 0
-
-        val aggregates = aggregateRepository.getByProductAndDateRange(productId, startDate, today)
-        val forecasts = forecastRepository.getForecastsByProduct(productId, today.plusDays(1))
-
-        // Calculate Range Specific Stats (Sync Fix)
-        val (rangeTotalIn, rangeTotalOut) = inventoryRepository.getProductStats(productId, startDate, today)
 
         // Logic to calculate estimated stock out date
         var tempStock = currentStock.toDouble()
@@ -47,7 +52,7 @@ class GetChartDataUseCase(
 
         val remainingDays = estimatedStockOutDate?.let { java.time.temporal.ChronoUnit.DAYS.between(today, it) }
 
-        return ChartDataResponse(
+        ChartDataResponse(
             product = ProductResponse(
                 id = product.id.toString(),
                 name = product.name,
