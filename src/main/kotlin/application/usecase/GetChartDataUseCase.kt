@@ -38,11 +38,15 @@ class GetChartDataUseCase(
 
         val currentStock = snapshot?.currentStock ?: 0
 
+        // LOGIC: Strict 60-day minimum requirement for prediction
+        val hasEnoughData = aggregates.size >= 60
+        val validForecasts = if (hasEnoughData) forecasts else emptyList()
+
         // Logic to calculate estimated stock out date
         var tempStock = currentStock.toDouble()
         var estimatedStockOutDate: LocalDate? = null
         
-        for (forecast in forecasts) {
+        for (forecast in validForecasts) {
             tempStock -= forecast.predictedValue
             if (tempStock <= 0) {
                 estimatedStockOutDate = forecast.targetDate
@@ -66,7 +70,7 @@ class GetChartDataUseCase(
             ),
             currentStock = currentStock,
             estimatedStockOutDate = estimatedStockOutDate?.toString(),
-            remainingDays = remainingDays,
+            remainingDays = remainingDays ?: 0, // Explicitly set to 0 if no valid prediction
             historicalData = aggregates.map { 
                 DailyAggregateDto(
                     date = it.date.toString(),
@@ -75,7 +79,7 @@ class GetChartDataUseCase(
                     netFlow = it.netFlow
                 )
             },
-            forecastingData = forecasts.map {
+            forecastingData = validForecasts.map {
                 ForecastingResultDto(
                     targetDate = it.targetDate.toString(),
                     predictedValue = it.predictedValue,
